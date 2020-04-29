@@ -246,7 +246,8 @@ class PostgresInstaller extends DatabaseInstaller {
 					 * @var Database $conn
 					 */
 					$conn = $status->value;
-					$safeRole = $conn->addIdentifierQuotes( $this->getVar( 'wgDBuser' ) );
+					// Use RegEx to drop @servername from wgDBuser
+					$safeRole = $conn->addIdentifierQuotes(preg_replace('/@.*/', '', $this->getVar( 'wgDBuser' )));
 					$conn->query( "SET ROLE $safeRole" );
 				}
 
@@ -551,19 +552,21 @@ class PostgresInstaller extends DatabaseInstaller {
 
 		$safeuser = $conn->addIdentifierQuotes( $this->getVar( 'wgDBuser' ) );
 		$safepass = $conn->addQuotes( $this->getVar( 'wgDBpassword' ) );
+		$saferole = preg_replace('/@.*/', '', $this->getVar( 'wgDBuser' ) );
 
 		// Check if the user already exists
-		$userExists = $conn->roleExists( $this->getVar( 'wgDBuser' ) );
+		$userExists = $conn->roleExists( $saferole );
 		if ( !$userExists ) {
 			// Create the user
 			try {
-				$sql = "CREATE ROLE $safeuser NOCREATEDB LOGIN PASSWORD $safepass";
+				$sql = "CREATE ROLE $saferole NOCREATEDB LOGIN PASSWORD $safepass";
 
 				// If the install user is not a superuser, we need to make the install
 				// user a member of the new user's group, so that the install user will
 				// be able to create a schema and other objects on behalf of the new user.
 				if ( !$this->isSuperUser() ) {
-					$sql .= ' ROLE' . $conn->addIdentifierQuotes( $this->getVar( '_InstallUser' ) );
+					$otherrole = preg_replace('/@.*/', '', $this->getVar( '_InstallUser' ) );
+					$sql .= ' ROLE' . $conn->addIdentifierQuotes( $otherrole );
 				}
 
 				$conn->query( $sql, __METHOD__ );
